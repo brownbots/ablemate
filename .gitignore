@@ -43,3 +43,29 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Backend (FastAPI + PostgreSQL)
+backend/__pycache__/
+backend/.env
+backend/.venv/
+backend/venv/
+backend/env/
+backend/*.pyc
+backend/.pytest_cache/
+backend/alembic/versions/__pycache__/
+backend/*.db
+backend/.coverage
+backend/htmlcov/
+
+# Database
+*.sqlite3
+*.db
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
