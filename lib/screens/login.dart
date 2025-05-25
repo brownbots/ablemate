@@ -18,7 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> loginUser() async {
     try {
-      final url = Uri.parse('http://192.168.1.9:8000/login');
+      final url = Uri.parse('http://192.168.0.173:8000/login');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

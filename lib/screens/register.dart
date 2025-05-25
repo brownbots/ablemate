@@ -30,7 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     try {
-      final url = Uri.parse('http://192.168.1.9:8000/register');
+      final url = Uri.parse('http://192.168.0.173:8000/register');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -141,10 +141,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: dobController,
+                    readOnly: true,
+                    onTap: () async {
+                      final pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime(2000),
+                        firstDate: DateTime(1900),
+                        lastDate: DateTime.now(),
+                      );
+                      if (pickedDate != null) {
+                        dobController.text =
+                        "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}";
+                      }
+                    },
                     decoration: const InputDecoration(
                       labelText: 'Date of Birth',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      suffixIcon: Icon(Icons.calendar_today),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -163,9 +177,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedDisability,
-                    items: ['None', 'Physical', 'Visual', 'Hearing']
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
+                    items: [
+                      'None',
+                      'Physical',
+                      'Visual',
+                      'Hearing',
+                      'Cognitive',
+                      'Speech',
+                      'Mental Health',
+                      'Multiple',
+                      'Senior Citizen'
+                    ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                     onChanged: (val) => setState(() => selectedDisability = val),
                     decoration: const InputDecoration(
                       labelText: 'Disability Status',
