@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dashboard.dart';
+import 'profile.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -20,6 +22,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? selectedGender;
   String? selectedDisability;
   String? errorMessage;
+
+  // Save user data to SharedPreferences
+  Future<void> _saveUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_fullname', nameController.text);
+    await prefs.setString('user_email', emailController.text);
+    await prefs.setString('user_dob', dobController.text);
+    await prefs.setString('user_gender', selectedGender ?? '');
+    await prefs.setString('user_disability', selectedDisability ?? '');
+  }
 
   Future<void> registerUser() async {
     if (passwordController.text != confirmPasswordController.text) {
@@ -45,9 +57,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (response.statusCode == 200) {
-        Navigator.pushReplacement(
+        // Save user data locally after successful registration
+        await _saveUserData();
+
+        // Navigate to dashboard and ensure profile will load fresh data
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const DashboardScreen()),
+              (route) => false,
         );
       } else {
         setState(() {

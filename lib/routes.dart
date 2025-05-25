@@ -7,6 +7,7 @@ import 'screens/request_task.dart';
 import 'screens/volunteer_dashboard.dart';
 import 'screens/success_stories.dart';
 import 'screens/profile.dart';
+import 'screens/edit_profile.dart';  // Add this import
 
 final Map<String, WidgetBuilder> appRoutes = {
   '/get-started': (context) => const GetStartedScreen(),
@@ -17,4 +18,5 @@ final Map<String, WidgetBuilder> appRoutes = {
   '/volunteer': (context) => const VolunteerDashboardScreen(),
   '/stories': (context) => const SuccessStoriesScreen(),
   '/profile': (context) => const ProfileScreen(),
+  '/edit_profile': (context) => const EditProfileScreen(),  // Add this route
 };
