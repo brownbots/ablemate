@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dashboard.dart';
-import 'profile.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -14,27 +13,59 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final confirmPasswordController = TextEditingController();
-  final dobController = TextEditingController();
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController dobController = TextEditingController();
+
   String? selectedGender;
   String? selectedDisability;
+  String? selectedExperience;
   String? errorMessage;
+  String role = 'volunteer'; // default fallback
 
-  // Save user data to SharedPreferences
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args != null && (args == 'volunteer' || args == 'dependent')) {
+      setState(() => role = args as String);
+    }
+  }
+
   Future<void> _saveUserData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_fullname', nameController.text);
-    await prefs.setString('user_email', emailController.text);
-    await prefs.setString('user_dob', dobController.text);
+    await prefs.setString('user_fullname', nameController.text.trim());
+    await prefs.setString('user_email', emailController.text.trim());
+    await prefs.setString('user_dob', dobController.text.trim());
     await prefs.setString('user_gender', selectedGender ?? '');
-    await prefs.setString('user_disability', selectedDisability ?? '');
+    if (role == 'dependent') {
+      await prefs.setString('user_disability', selectedDisability ?? '');
+    } else {
+      await prefs.setString('user_experience', selectedExperience ?? '');
+    }
   }
 
   Future<void> registerUser() async {
-    if (passwordController.text != confirmPasswordController.text) {
+    final fullName = nameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+    final confirmPassword = confirmPasswordController.text;
+    final dob = dobController.text.trim();
+
+    // Basic client-side validation
+    if ([fullName, email, password, confirmPassword, dob].any((e) => e.isEmpty) ||
+        selectedGender == null ||
+        (role == 'dependent' && selectedDisability == null) ||
+        (role == 'volunteer' && selectedExperience == null)) {
+      setState(() {
+        errorMessage = 'Please fill in all fields';
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
       setState(() {
         errorMessage = 'Passwords do not match';
       });
@@ -42,40 +73,82 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     try {
-      final url = Uri.parse('http://192.168.0.173:8000/register');
+      final url = Uri.parse('http://192.168.1.6:8000/api/auth/register');
+
+      // Construct the request body dynamically based on the role
+      final Map<String, dynamic> requestBody = {
+        'full_name': fullName,
+        'email': email,
+        'password': password,
+        'confirm_password': confirmPassword, // FastAPI expects this for the validator
+        'dob': dob,
+        'gender': selectedGender!,
+        'role': role,
+      };
+
+      // Conditionally add disability_status or experience
+      if (role == 'dependent') {
+        requestBody['disability_status'] = selectedDisability!;
+      } else if (role == 'volunteer') {
+        requestBody['experience'] = selectedExperience!;
+      }
+
+      // Encode the request body to JSON
+      final jsonPayload = jsonEncode(requestBody);
+
+      // Print the JSON payload to the console for debugging
+      print('Sending JSON Payload: $jsonPayload');
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'full_name': nameController.text,
-          'email': emailController.text,
-          'password': passwordController.text,
-          'dob': dobController.text,
-          'gender': selectedGender ?? '',
-          'disability_status': selectedDisability ?? '',
-        }),
+        body: jsonPayload, // Use the encoded JSON payload
       );
 
-      if (response.statusCode == 200) {
-        // Save user data locally after successful registration
+      // Handle the response based on status code
+      if (response.statusCode == 201) { // Changed to 201 as per auth.py
         await _saveUserData();
 
-        // Navigate to dashboard and ensure profile will load fresh data
+        // Navigate to Dashboard on successful registration
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const DashboardScreen()),
               (route) => false,
         );
       } else {
+        // Parse and display error message from the backend
+        final responseBody = jsonDecode(response.body);
         setState(() {
-          errorMessage = jsonDecode(response.body)['detail'] ?? 'Registration failed';
+          // FastAPI 422 errors have 'detail' which is a list of errors
+          // For other errors, it might be a simple string
+          if (responseBody.containsKey('detail') && responseBody['detail'] is List) {
+            errorMessage = (responseBody['detail'] as List)
+                .map((e) => e['msg'] ?? e.toString())
+                .join('\n');
+          } else {
+            errorMessage = responseBody['detail'] ?? responseBody['message'] ?? 'Registration failed';
+          }
         });
+        print('Backend Error: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
+      // Catch and display any network or other errors
       setState(() {
-        errorMessage = 'Error connecting to server';
+        errorMessage = 'Error connecting to server: $e';
       });
+      print('Flutter Error: $e');
     }
+  }
+
+  @override
+  void dispose() {
+    // Dispose controllers to prevent memory leaks
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    dobController.dispose();
+    super.dispose();
   }
 
   @override
@@ -98,8 +171,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Create Your Account',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                  Text('Register as ${role == 'volunteer' ? 'Volunteer' : 'Dependent'}',
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.indigo)),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -167,6 +240,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         lastDate: DateTime.now(),
                       );
                       if (pickedDate != null) {
+                        // Ensure date format matches YYYY-MM-DD
                         dobController.text =
                         "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}";
                       }
@@ -192,26 +266,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: selectedDisability,
-                    items: [
-                      'None',
-                      'Physical',
-                      'Visual',
-                      'Hearing',
-                      'Cognitive',
-                      'Speech',
-                      'Mental Health',
-                      'Multiple',
-                      'Senior Citizen'
-                    ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                    onChanged: (val) => setState(() => selectedDisability = val),
-                    decoration: const InputDecoration(
-                      labelText: 'Disability Status',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  if (role == 'dependent')
+                    DropdownButtonFormField<String>(
+                      value: selectedDisability,
+                      items: [
+                        'None',
+                        'Physical',
+                        'Visual',
+                        'Hearing',
+                        'Cognitive',
+                        'Speech',
+                        'Mental Health',
+                        'Multiple',
+                        'Senior Citizen'
+                      ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      onChanged: (val) => setState(() => selectedDisability = val),
+                      decoration: const InputDecoration(
+                        labelText: 'Disability Status',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
                     ),
-                  ),
+                  if (role == 'volunteer')
+                    DropdownButtonFormField<String>(
+                      value: selectedExperience,
+                      items: [
+                        '3 months',
+                        '6 months',
+                        '1 year',
+                        '2 years',
+                        'More than 2 years',
+                      ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      onChanged: (val) => setState(() => selectedExperience = val),
+                      decoration: const InputDecoration(
+                        labelText: 'Previous Experience',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                    ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
