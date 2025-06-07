@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RequestTaskScreen extends StatefulWidget {
   const RequestTaskScreen({super.key});
@@ -10,6 +11,8 @@ class RequestTaskScreen extends StatefulWidget {
 }
 
 class _RequestTaskScreenState extends State<RequestTaskScreen> {
+  final _formKey = GlobalKey<FormState>();
+
   final List<String> taskTypes = [
     'Grocery Shopping',
     'House Cleaning',
@@ -24,80 +27,133 @@ class _RequestTaskScreenState extends State<RequestTaskScreen> {
     'Check-in',
   ];
 
+  final List<String> priorities = ['Low', 'Medium', 'High'];
+
   String? selectedTaskType;
   String? selectedPriority;
   bool isSubmitting = false;
+  String? authToken;
+  bool isAuthenticated = false;
 
   final TextEditingController shortDescController = TextEditingController();
   final TextEditingController detailedDescController = TextEditingController();
 
-  final List<String> priorities = ['Low', 'Medium', 'High'];
+  static const String baseUrl = 'http://192.168.1.6:8000';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAuthToken();
+  }
+
+  Future<void> _loadAuthToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    setState(() {
+      authToken = token;
+      isAuthenticated = token != null && token.isNotEmpty;
+    });
+    print('Auth token loaded: ${token != null ? "Yes" : "No"}');
+  }
+
+  Future<void> testConnection() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/health'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Backend connection successful!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Connection failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   Future<void> submitTask() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       isSubmitting = true;
     });
 
-    final url = Uri.parse('http://192.168.1.18:8000/tasks/');
+    final endpoint = isAuthenticated ? '/api/tasks/authenticated' : '/api/tasks/';
+    final url = Uri.parse('$baseUrl$endpoint');
 
     try {
+      final headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        if (isAuthenticated && authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+
+      final requestBody = {
+        'title': shortDescController.text.trim(),
+        'description': detailedDescController.text.trim(),
+        'priority': selectedPriority!.toLowerCase(),
+        'task_type': selectedTaskType,
+      };
+
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'title': shortDescController.text.trim(),
-          'description': detailedDescController.text.trim(),
-          'priority': selectedPriority,
-          'task_type': selectedTaskType,
-        }),
-      );
-
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+        headers: headers,
+        body: jsonEncode(requestBody),
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Task request submitted successfully! 🎉'),
+            content: Text('✅ Task request submitted successfully! 🎉'),
             backgroundColor: Colors.green,
           ),
         );
 
-        // Clear form after successful submission
         shortDescController.clear();
         detailedDescController.clear();
         setState(() {
           selectedTaskType = null;
           selectedPriority = null;
         });
-
-        // Optional: Navigate back or to another screen
-        // Navigator.pop(context);
-
       } else {
-        // Parse error message if available
         String errorMessage = 'Submission failed';
         try {
           final errorData = jsonDecode(response.body);
           if (errorData['detail'] != null) {
-            errorMessage = errorData['detail'];
+            if (errorData['detail'] is List) {
+              errorMessage = (errorData['detail'] as List)
+                  .map((e) => e['msg'] ?? e.toString())
+                  .join(', ');
+            } else {
+              errorMessage = errorData['detail'].toString();
+            }
           }
-        } catch (e) {
-          errorMessage = 'Submission failed with status: ${response.statusCode}';
-        }
-
+        } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text('❌ $errorMessage'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
-      print('Request failed: $e');
+      String errorMessage = e.toString().contains('TimeoutException')
+          ? 'Request timed out. Is the backend running?'
+          : 'Connection error. Check your network or IP.';
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Network error occurred. Please check your connection.'),
+        SnackBar(
+          content: Text('❌ $errorMessage'),
           backgroundColor: Colors.red,
         ),
       );
@@ -120,205 +176,229 @@ class _RequestTaskScreenState extends State<RequestTaskScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Request a Task"),
-        elevation: 2,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.wifi_tethering),
+            onPressed: testConnection,
+            tooltip: 'Test Backend Connection',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Task Type Dropdown
-              DropdownButtonFormField<String>(
-                value: selectedTaskType,
-                items: taskTypes
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: isSubmitting ? null : (val) => setState(() => selectedTaskType = val),
-                decoration: const InputDecoration(
-                  labelText: 'Task Type',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.category),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please select a task type';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Short Description Field
-              TextField(
-                controller: shortDescController,
-                enabled: !isSubmitting,
-                decoration: const InputDecoration(
-                  labelText: 'Short Description',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.short_text),
-                  hintText: 'Brief summary of the task',
-                ),
-                maxLength: 100,
-                textCapitalization: TextCapitalization.sentences,
-              ),
-              const SizedBox(height: 16),
-
-              // Detailed Description Field
-              TextField(
-                controller: detailedDescController,
-                enabled: !isSubmitting,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Detailed Description',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.description),
-                  hintText: 'Provide detailed information about what help you need',
-                  alignLabelWithHint: true,
-                ),
-                maxLength: 500,
-                textCapitalization: TextCapitalization.sentences,
-              ),
-              const SizedBox(height: 16),
-
-              // Priority Dropdown
-              DropdownButtonFormField<String>(
-                value: selectedPriority,
-                items: priorities
-                    .map((e) => DropdownMenuItem(
-                  value: e,
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.disabled,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Connection Info
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  ),
                   child: Row(
                     children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: {
-                            'High': Colors.red,
-                            'Medium': Colors.orange,
-                            'Low': Colors.green,
-                          }[e],
-                        ),
-                      ),
+                      const Icon(Icons.info_outline, color: Colors.blue),
                       const SizedBox(width: 8),
-                      Text(e),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Backend URL: $baseUrl', style: const TextStyle(fontSize: 12)),
+                            Text('Auth Status: ${isAuthenticated ? "Logged in" : "Anonymous"}',
+                                style: const TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ))
-                    .toList(),
-                onChanged: isSubmitting ? null : (val) => setState(() => selectedPriority = val),
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.priority_high),
                 ),
-              ),
-              const SizedBox(height: 32),
 
-              // Submit Button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: isSubmitting ? null : () {
-                    // Validate all fields
-                    if (shortDescController.text.trim().isEmpty ||
-                        detailedDescController.text.trim().isEmpty ||
-                        selectedPriority == null ||
-                        selectedTaskType == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please fill in all fields'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                      return;
-                    }
-
-                    // Additional validation
-                    if (shortDescController.text.trim().length < 5) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Short description must be at least 5 characters'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                      return;
-                    }
-
-                    if (detailedDescController.text.trim().length < 10) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Detailed description must be at least 10 characters'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                      return;
-                    }
-
-                    submitTask();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
+                if (!isAuthenticated)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.warning_amber_outlined, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'You are not logged in. Tasks will be submitted anonymously.',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: isSubmitting
-                      ? const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+
+                DropdownButtonFormField<String>(
+                  value: selectedTaskType,
+                  items: taskTypes
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: isSubmitting ? null : (val) => setState(() => selectedTaskType = val),
+                  decoration: const InputDecoration(
+                    labelText: 'Task Type',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.category),
+                  ),
+                  validator: (value) => value == null ? 'Please select a task type' : null,
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: shortDescController,
+                  enabled: !isSubmitting,
+                  decoration: const InputDecoration(
+                    labelText: 'Short Description',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.short_text),
+                    hintText: 'Brief summary of the task',
+                  ),
+                  maxLength: 100,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Short description is required';
+                    } else if (value.trim().length < 5) {
+                      return 'Must be at least 5 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: detailedDescController,
+                  enabled: !isSubmitting,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Detailed Description',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.description),
+                    hintText: 'Explain what help you need',
+                    alignLabelWithHint: true,
+                  ),
+                  maxLength: 500,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Detailed description is required';
+                    } else if (value.trim().length < 10) {
+                      return 'Must be at least 10 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<String>(
+                  value: selectedPriority,
+                  items: priorities.map((e) {
+                    return DropdownMenuItem(
+                      value: e,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: {
+                                'High': Colors.red,
+                                'Medium': Colors.orange,
+                                'Low': Colors.green,
+                              }[e],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(e),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: isSubmitting ? null : (val) => setState(() => selectedPriority = val),
+                  decoration: const InputDecoration(
+                    labelText: 'Priority',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.priority_high),
+                  ),
+                  validator: (value) => value == null ? 'Please select a priority' : null,
+                ),
+                const SizedBox(height: 32),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: isSubmitting ? null : submitTask,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: isSubmitting
+                        ? const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Text("Submitting..."),
+                      ],
+                    )
+                        : const Text(
+                      "Submit Request",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: const Row(
                     children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      Icon(Icons.check_circle_outline, color: Colors.green),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Your task request will be reviewed and matched with available volunteers.',
+                          style: TextStyle(fontSize: 12),
                         ),
                       ),
-                      SizedBox(width: 12),
-                      Text("Submitting..."),
                     ],
-                  )
-                      : const Text(
-                    "Submit Request",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Help Text
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Your task request will be reviewed and matched with available volunteers.',
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

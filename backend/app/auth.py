@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from .database import SessionLocal
-from .schemas import UserCreate, UserLogin, UserResponse, TokenResponse, RegistrationSuccessResponse # Import RegistrationSuccessResponse
+from .schemas import UserCreate, UserLogin, UserResponse, TokenResponse, RegistrationSuccessResponse
 from . import models
 import hashlib
 
 router = APIRouter(tags=["Authentication"])
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 def get_db():
     db = SessionLocal()
@@ -41,10 +44,9 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    # Return the data in the structure expected by RegistrationSuccessResponse
     return {
         "message": "User registered successfully",
-        "user": UserResponse.model_validate(new_user) # Use model_validate to convert new_user to UserResponse
+        "user": UserResponse.model_validate(new_user)
     }
 
 @router.post("/login", response_model=TokenResponse)
@@ -62,8 +64,29 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # TODO: Generate real JWT token here instead of dummy token
+    token = "generated_jwt_token_here"
+
     return {
         "message": "Login successful",
-        "access_token": "generated_jwt_token_here",
+        "access_token": token,
         "token_type": "bearer"
     }
+
+# This is the missing get_current_user dependency to fix your import error:
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    # For now, a dummy implementation that accepts the dummy token from login
+    if token != "generated_jwt_token_here":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Find user by token - since token is dummy, just return the first user or dummy user
+    user = db.query(models.User).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
