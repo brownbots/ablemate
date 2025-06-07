@@ -12,20 +12,27 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
   String? errorMessage;
 
   Future<void> loginUser() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        errorMessage = 'Please fill in all fields';
+      });
+      return;
+    }
+
     try {
-      final url = Uri.parse('http://192.168.0.173:8000/login');
+      final url = Uri.parse('http://192.168.1.6:8000/api/auth/login');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': emailController.text,
-          'password': passwordController.text,
-        }),
+        body: jsonEncode({'email': email, 'password': password}),
       );
 
       if (response.statusCode == 200) {
@@ -34,8 +41,9 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(builder: (_) => const DashboardScreen()),
         );
       } else {
+        final responseBody = jsonDecode(response.body);
         setState(() {
-          errorMessage = jsonDecode(response.body)['detail'] ?? 'Login failed';
+          errorMessage = responseBody['detail'] ?? 'Login failed';
         });
       }
     } catch (e) {
@@ -43,6 +51,13 @@ class _LoginScreenState extends State<LoginScreen> {
         errorMessage = 'Error connecting to server';
       });
     }
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 
   @override

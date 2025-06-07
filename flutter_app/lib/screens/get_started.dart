@@ -19,7 +19,7 @@ class GetStartedScreen extends StatelessWidget {
               const Text("From Willing Hands to Waiting Hearts.", textAlign: TextAlign.center),
               const SizedBox(height: 30),
               ElevatedButton(
-                onPressed: () => Navigator.pushNamed(context, '/register'),
+                onPressed: () => _showRegistrationOptions(context),
                 child: const Text("Get Started"),
               ),
               TextButton(
@@ -28,6 +28,40 @@ class GetStartedScreen extends StatelessWidget {
               )
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showRegistrationOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Register as", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/register', arguments: 'volunteer');
+              },
+              child: const Text("Volunteer"),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/register', arguments: 'dependent');
+              },
+              child: const Text("Dependent"),
+            ),
+          ],
         ),
       ),
     );
