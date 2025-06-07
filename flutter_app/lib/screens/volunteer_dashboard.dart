@@ -17,7 +17,7 @@ class _VolunteerDashboardScreenState extends State<VolunteerDashboardScreen> {
   Future<void> fetchTasks() async {
     try {
       final response =
-      await http.get(Uri.parse('http://192.168.1.18:8000/tasks/'));
+      await http.get(Uri.parse('http://192.168.1.6:8000/tasks/'));
 
       if (response.statusCode == 200) {
         setState(() {

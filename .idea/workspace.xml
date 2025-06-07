@@ -5,16 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2c2cb060-05e2-4158-a9fe-f4e781ff8aaa" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/auth.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/auth.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/database.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/requirements.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/flutter_app/android/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/flutter_app/android/app/src/main/AndroidManifest.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/flutter_app/lib/screens/get_started.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter_app/lib/screens/get_started.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/flutter_app/lib/screens/login.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter_app/lib/screens/login.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/flutter_app/lib/screens/register.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter_app/lib/screens/register.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/tasks.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/tasks.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/flutter_app/lib/screens/request_task.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter_app/lib/screens/request_task.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/flutter_app/lib/screens/volunteer_dashboard.dart" beforeDir="false" afterPath="$PROJECT_DIR$/flutter_app/lib/screens/volunteer_dashboard.dart" afterDir="false" />
     </list>
